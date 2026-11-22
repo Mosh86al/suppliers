@@ -21,6 +21,9 @@ h1{font-size:20px;margin:0}
 .sum div{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px}
 .sum small{color:var(--mut);display:block}
 .sum b{font-size:18px}
+.tabs{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.tabs .btn.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.tabs select{margin-inline-start:auto}
 .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .filters .btn.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 .row{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:8px;border-inline-start:4px solid var(--bad)}
@@ -54,15 +57,16 @@ input[type=number]{width:100px}
 </header>
 <div class="vatrow">שיעור מע״מ: <input type="number" id="vat" min="0" step="0.5">%</div>
 <div class="sum" id="sum"></div>
+<div class="tabs" id="tabs"></div>
 <div class="filters" id="filters"></div>
 <div id="list"></div>
 <div class="add"><input id="newName" placeholder="הוספת ספק חדש לחודש הזה"><button class="btn p" id="addBtn">הוסף</button></div>
-<div style="margin-top:10px"><button class="btn" id="copyBtn">הוסף ספקים חסרים מהחודש הקודם</button></div>
+<div style="margin-top:10px"><button class="btn" id="copyBtn">הוסף ספקים חסרים מהחודש הקודם</button> <button class="btn" id="impBtn">טען ספקים מקובץ</button><a class="btn" href="template.xlsx" download="תבנית-ספקים.xlsx" style="text-decoration:none;display:inline-block">הורד תבנית Excel</a><input type="file" id="impFile" accept=".csv,.txt,.xlsx,.xls" style="display:none"><div class="hint" id="impMsg" style="margin:6px 0 0"></div></div>
 <p class="hint">כל השינויים נשמרים אוטומטית בשרת ומסונכרנים בין המכשירים.</p>
 </div>
 <script>
 var KEY="suppliers-v1",MN=["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-function r(n,i,s,d,p,note){return{n:n,i:i||"",s:!!s,d:!!d,v:false,p:!!p,a:"",t:note||""}}
+function r(n,i,s,d,p,note){return{n:n,i:i||"",s:!!s,d:!!d,v:false,p:!!p,a:"",t:note||"",u:Date.now()}}
 var seed={"2026-11":[
 r("בית אפל לגו","מורן",1,1),r("מרכז חירום בית אפל","מורן",1,1),r("ארתור","מורן",1,0,1),
 r("מתנס ט׳","משה",1),r("נחשון","משה",1),r("גדרה אופק","מורן",0,1),r("מגשימים קריית מלאכי","מורן",0,1),
@@ -70,7 +74,7 @@ r("אשדוד תכשיטנות","מורן"),r("מועצה אזורית באר ט
 r("אתי","מורן",1,1,0,"חשבונית בחודש נובמבר – לרשום על 150 חומרים של נתיב העשרה"),
 r("טנה","",0,0,0,"בחודש נובמבר יעבירו גם על אוקטובר + על 2 רשומות"),
 r("אולפנה","משה",0,1),r("מתנס ספרא","מורן")]};
-var data=null,cur="2026-11",flt="all";
+var data=null,cur="2026-11",flt="all",tab="open",sortBy="manual";
 try{data=JSON.parse(localStorage.getItem(KEY))}catch(e){}
 if(!data||!data.m)data={m:seed};
 var VAT=(data.vat==null)?18:+data.vat;
@@ -81,6 +85,11 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}if(
 function loadRemote(){setSt("טוען...");fetch("/api/data",{cache:"no-store"}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){if(j&&j.m){data=j;VAT=(data.vat==null)?18:+data.vat;document.getElementById("vat").value=VAT;ready=true;setSt("נשמר ✓");render()}else{ready=true;push()}}).catch(function(){setSt("עובד מקומית (ללא שרת)")})}
 function rows(){if(!data.m[cur]){var ks=Object.keys(data.m).filter(function(k){return k<cur&&data.m[k].length}).sort(),src=ks.length?data.m[ks[ks.length-1]]:[];data.m[cur]=src.map(function(x){return r(x.n,x.i)});save()}return data.m[cur]}
 function shift(d){var p=cur.split("-"),dt=new Date(+p[0],+p[1]-1+d,1);cur=dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0");render()}
+function sorted(){var V=rows().filter(function(x){return tab=="paid"?!!x.p:!x.p});
+if(sortBy=="alpha")V.sort(function(a,b){return a.n.localeCompare(b.n,"he")});
+else if(sortBy=="amount")V.sort(function(a,b){return gross(b)-gross(a)});
+else if(sortBy=="date")V.sort(function(a,b){return (b.u||0)-(a.u||0)});
+return V}
 function st(x){return x.p?"done":(x.s||x.d||x.i)?"partial":""}
 function fmt(n){return n.toLocaleString("he-IL",{maximumFractionDigits:2})+" ₪"}
 function vatApplies(x){return x.i!="משה"&&!!(x.d||x.s)}
@@ -98,21 +107,26 @@ document.getElementById("sum").innerHTML=
 "<div><small>שולם</small><b style='color:var(--ok)'>"+fmt(paid)+"</b></div>"+
 "<div><small>ממתין לתשלום</small><b style='color:var(--bad)'>"+fmt(open)+"</b></div>"+
 "<div><small>ללא חשבונית מס</small><b>"+R.filter(function(x){return x.i!="משה"&&!x.s}).length+"</b></div>";
-var F=[["all","הכל"],["unpaid","לא שולם"],["unsent","ללא חשבונית מס"],["moshe","משה"],["moran","מורן"]];
+var F=[["all","הכל"],["unsent","ללא חשבונית מס"],["moshe","משה"],["moran","מורן"]];
 document.getElementById("filters").innerHTML=F.map(function(f){return "<button class='btn"+(flt==f[0]?" on":"")+"' data-f='"+f[0]+"'>"+f[1]+"</button>"}).join("");
+var nO=R.filter(function(x){return !x.p}).length,nP=R.length-nO;
+var T=document.getElementById("tabs");T.innerHTML="<button class='btn"+(tab=="open"?" on":"")+"' data-t='open'>ממתינים ("+nO+")</button><button class='btn"+(tab=="paid"?" on":"")+"' data-t='paid'>שולם ("+nP+")</button><select id='sortSel'><option value='manual'>סדר: רגיל</option><option value='alpha'>אלפבתי</option><option value='amount'>סכום (מהגבוה לנמוך)</option><option value='date'>תאריך עדכון (החדש ראשון)</option></select>";
+document.getElementById("sortSel").value=sortBy;document.getElementById("sortSel").onchange=function(){sortBy=this.value;render()};
+T.querySelectorAll("[data-t]").forEach(function(b){b.onclick=function(){tab=b.dataset.t;render()}});
 var L=document.getElementById("list");L.innerHTML="";
-R.forEach(function(x,idx){
-if(flt=="unpaid"&&x.p)return;if(flt=="unsent"&&(x.s||x.i=="משה"))return;if(flt=="moshe"&&x.i!="משה")return;if(flt=="moran"&&x.i!="מורן")return;
+var V=sorted();if(!V.length)L.innerHTML="<div class='hint'>אין ספקים בלשונית הזו</div>";
+V.forEach(function(x){
+if(flt=="unsent"&&(x.s||x.i=="משה"))return;if(flt=="moshe"&&x.i!="משה")return;if(flt=="moran"&&x.i!="מורן")return;
 var d=document.createElement("div");d.className="row "+st(x)+(x.i=="משה"?" moshe":x.i=="מורן"?" moran":"");
 d.innerHTML="<div class='top'><input class='name' value=''><select><option value=''>קבלה ע״י: —</option><option>משה</option><option>מורן</option></select><input type='number' placeholder='סכום' min='0'><label class='vmc'><input type='checkbox' class='vm'> כולל מע״מ</label><button class='del' title='מחק'>×</button></div>"+
 "<div class='checks'><label><input type='checkbox' data-k='d'> חשבונית עסקה</label><label><input type='checkbox' data-k='s'> חשבונית מס</label><label><input type='checkbox' data-k='v'> חשבונית</label><label><input type='checkbox' data-k='p'> שולם</label></div><div class='vl'></div><input class='note' placeholder='הערות'>";
-var nm=d.querySelector(".name");nm.value=x.n;nm.oninput=function(){x.n=nm.value;save()};
-var sel=d.querySelector("select");sel.value=x.i;sel.onchange=function(){x.i=sel.value;save();render()};
-var am=d.querySelector("input[type=number]");am.value=x.a;am.oninput=function(){x.a=am.value;save()};am.onchange=render;
+var nm=d.querySelector(".name");nm.value=x.n;nm.oninput=function(){x.n=nm.value;x.u=Date.now();save()};
+var sel=d.querySelector("select");sel.value=x.i;sel.onchange=function(){x.i=sel.value;x.u=Date.now();save();render()};
+var am=d.querySelector("input[type=number]");am.value=x.a;am.oninput=function(){x.a=am.value;x.u=Date.now();save()};am.onchange=render;
 d.querySelectorAll("[data-k]").forEach(function(c){var k=c.dataset.k;if((x.i=="משה"&&(k=="d"||k=="s"))||(x.i=="מורן"&&k=="v"))c.parentNode.style.display="none"});
-var vm=d.querySelector(".vm");vm.checked=!!x.w;vm.onchange=function(){x.w=vm.checked;save();render()};if(x.i=="משה")d.querySelector(".vmc").style.display="none";
-d.querySelectorAll("[data-k]").forEach(function(c){c.checked=x[c.dataset.k];c.onchange=function(){x[c.dataset.k]=c.checked;save();render()}});
-var nt=d.querySelector(".note");nt.value=x.t;nt.oninput=function(){x.t=nt.value;save()};
+var vm=d.querySelector(".vm");vm.checked=!!x.w;vm.onchange=function(){x.w=vm.checked;x.u=Date.now();save();render()};if(x.i=="משה")d.querySelector(".vmc").style.display="none";
+d.querySelectorAll("[data-k]").forEach(function(c){c.checked=x[c.dataset.k];c.onchange=function(){x[c.dataset.k]=c.checked;x.u=Date.now();save();render()}});
+var nt=d.querySelector(".note");nt.value=x.t;nt.oninput=function(){x.t=nt.value;x.u=Date.now();save()};
 d.querySelector(".del").onclick=function(){if(d.querySelector(".delbar"))return;var b=document.createElement("div");b.className="delbar";var s=document.createElement("span");s.textContent="להסיר את הספק?";b.appendChild(s);function mk(t,fn){var q=document.createElement("button");q.className="btn";q.textContent=t;q.onclick=fn;b.appendChild(q)}
 mk("החודש הזה בלבד",function(){R.splice(R.indexOf(x),1);save();render()});
 mk("החודש הזה והלאה",function(){Object.keys(data.m).forEach(function(k){if(k>=cur)data.m[k]=data.m[k].filter(function(y){return y.n!=x.n})});save();render()});
@@ -132,6 +146,20 @@ if(!src){alert("אין חודש קודם");return}
 var have=rows().map(function(x){return x.n});
 src.forEach(function(x){if(have.indexOf(x.n)<0)rows().push(r(x.n,x.i))});save();render()};
 var vi=document.getElementById("vat");vi.value=VAT;vi.oninput=function(){VAT=+vi.value||0;data.vat=VAT;save();render()};
+function addRows(list){var R=rows(),have=R.map(function(x){return x.n.trim()}),add=0,skip=0;
+list.forEach(function(c){var n=String(c[0]||"").trim();if(!n||/^(ספק|שם|שם ספק)$/.test(n))return;
+if(have.indexOf(n)>=0){skip++;return}
+var o=r(n),iss=String(c[1]||"");if(iss.indexOf("משה")>=0)o.i="משה";else if(iss.indexOf("מורן")>=0)o.i="מורן";
+var a=parseFloat(String(c[2]||"").replace(/,/g,""));if(!isNaN(a))o.a=a;
+R.push(o);have.push(n);add++});
+save();render();document.getElementById("impMsg").textContent="נוספו "+add+" ספקים"+(skip?", "+skip+" כבר קיימים":"")}
+function parseText(t){return t.replace(/^\uFEFF/,"").split(/\r?\n/).map(function(l){return l.split(/[,;\t]/)})}
+function loadXlsx(cb){if(window.XLSX)return cb();var s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=cb;s.onerror=function(){document.getElementById("impMsg").textContent="לא הצלחתי לטעון תמיכה ב-Excel, נסה קובץ CSV"};document.head.appendChild(s)}
+document.getElementById("impBtn").onclick=function(){document.getElementById("impFile").click()};
+document.getElementById("impFile").onchange=function(){var f=this.files[0],inp=this;if(!f)return;var ext=f.name.split(".").pop().toLowerCase(),fr=new FileReader();
+if(ext=="xlsx"||ext=="xls"){fr.onload=function(){loadXlsx(function(){var wb=XLSX.read(fr.result,{type:"array"});addRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1}))})}}
+else{fr.onload=function(){var b=fr.result,t;try{t=new TextDecoder("utf-8",{fatal:true}).decode(b)}catch(e){t=new TextDecoder("windows-1255").decode(b)}addRows(parseText(t))}}
+fr.readAsArrayBuffer(f);inp.value=""};
 render();loadRemote();
 </script>
 </body>
