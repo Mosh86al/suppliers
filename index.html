@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מעקב ספקים חודשי</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mut:#6b7280;--bd:#e3e6ea;--ac:#2563eb;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;--moshe:#e6f0ff;--moran:#fdeaf3;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14161a;--card:#1d2026;--tx:#e8eaed;--mut:#9aa1ab;--bd:#2d3139;--ac:#6ea0ff;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--moshe:#1f2c45;--moran:#3b2332;color-scheme:dark}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;padding:16px}
+.wrap{max-width:900px;margin:auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+h1{font-size:20px;margin:0}
+.nav{display:flex;align-items:center;gap:8px}
+.nav button,.btn{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit}
+.btn.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+.month{font-weight:600;min-width:120px;text-align:center}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px}
+.sum div{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px}
+.sum small{color:var(--mut);display:block}
+.sum b{font-size:18px}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.filters .btn.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.row{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:8px;border-inline-start:4px solid var(--bad)}
+.row.partial{border-inline-start-color:var(--warn)}
+.row.done{border-inline-start-color:var(--ok)}
+.row.moshe{background:var(--moshe)}
+.row.moran{background:var(--moran)}
+.top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.name{flex:1;min-width:140px;font-weight:600;font-size:15px;background:transparent;border:0;color:var(--tx);font-family:inherit;padding:4px 0}
+select,input[type=number],.note{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:5px 8px;font:inherit}
+input[type=number]{width:100px}
+.checks{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:14px}
+.checks label{display:flex;align-items:center;gap:5px;cursor:pointer}
+.note{width:100%;margin-top:8px;font-size:13px}
+.del{background:none;border:0;color:var(--mut);cursor:pointer;font-size:18px}
+.add{display:flex;gap:8px;margin-top:12px}
+.add input{flex:1;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px;font:inherit}
+.hint{color:var(--mut);font-size:12px;margin-top:14px}
+.vl{margin-top:6px;font-size:13px;color:var(--mut)}
+.vmc{display:flex;align-items:center;gap:5px;font-size:14px;cursor:pointer}
+.delbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:14px}
+.vatrow{margin-bottom:10px;font-size:14px;color:var(--mut)}
+.vatrow input{width:60px;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 6px;font:inherit}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>מעקב ספקים חודשי</h1><span id="st" class="hint" style="margin:0"></span>
+<div class="nav"><button id="next">›</button><div class="month" id="mlabel"></div><button id="prev">‹</button></div>
+</header>
+<div class="vatrow">שיעור מע״מ: <input type="number" id="vat" min="0" step="0.5">%</div>
+<div class="sum" id="sum"></div>
+<div class="filters" id="filters"></div>
+<div id="list"></div>
+<div class="add"><input id="newName" placeholder="הוספת ספק חדש לחודש הזה"><button class="btn p" id="addBtn">הוסף</button></div>
+<div style="margin-top:10px"><button class="btn" id="copyBtn">הוסף ספקים חסרים מהחודש הקודם</button></div>
+<p class="hint">כל השינויים נשמרים אוטומטית בשרת ומסונכרנים בין המכשירים.</p>
+</div>
+<script>
+var KEY="suppliers-v1",MN=["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+function r(n,i,s,d,p,note){return{n:n,i:i||"",s:!!s,d:!!d,v:false,p:!!p,a:"",t:note||""}}
+var seed={"2026-11":[
+r("בית אפל לגו","מורן",1,1),r("מרכז חירום בית אפל","מורן",1,1),r("ארתור","מורן",1,0,1),
+r("מתנס ט׳","משה",1),r("נחשון","משה",1),r("גדרה אופק","מורן",0,1),r("מגשימים קריית מלאכי","מורן",0,1),
+r("אשדוד תכשיטנות","מורן"),r("מועצה אזורית באר טוביה","מורן"),
+r("אתי","מורן",1,1,0,"חשבונית בחודש נובמבר – לרשום על 150 חומרים של נתיב העשרה"),
+r("טנה","",0,0,0,"בחודש נובמבר יעבירו גם על אוקטובר + על 2 רשומות"),
+r("אולפנה","משה",0,1),r("מתנס ספרא","מורן")]};
+var data=null,cur="2026-11",flt="all";
+try{data=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!data||!data.m)data={m:seed};
+var VAT=(data.vat==null)?18:+data.vat;
+var ready=false,tm=null;
+function setSt(t){var e=document.getElementById("st");if(e)e.textContent=t}
+function push(){setSt("שומר...");fetch("/api/data",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}).then(function(r){setSt(r.ok?"נשמר ✓":"שגיאת שמירה")}).catch(function(){setSt("שגיאת שמירה")})}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}if(!ready)return;clearTimeout(tm);tm=setTimeout(push,600)}
+function loadRemote(){setSt("טוען...");fetch("/api/data",{cache:"no-store"}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){if(j&&j.m){data=j;VAT=(data.vat==null)?18:+data.vat;document.getElementById("vat").value=VAT;ready=true;setSt("נשמר ✓");render()}else{ready=true;push()}}).catch(function(){setSt("עובד מקומית (ללא שרת)")})}
+function rows(){if(!data.m[cur]){var ks=Object.keys(data.m).filter(function(k){return k<cur&&data.m[k].length}).sort(),src=ks.length?data.m[ks[ks.length-1]]:[];data.m[cur]=src.map(function(x){return r(x.n,x.i)});save()}return data.m[cur]}
+function shift(d){var p=cur.split("-"),dt=new Date(+p[0],+p[1]-1+d,1);cur=dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0");render()}
+function st(x){return x.p?"done":(x.s||x.d||x.i)?"partial":""}
+function fmt(n){return n.toLocaleString("he-IL",{maximumFractionDigits:2})+" ₪"}
+function vatApplies(x){return x.i!="משה"&&!!(x.d||x.s)}
+function gross(x){var a=+x.a||0;return vatApplies(x)?(x.w?a:a*(1+VAT/100)):a}
+function vatOf(x){return vatApplies(x)?gross(x)-gross(x)/(1+VAT/100):0}
+function render(){
+var p=cur.split("-");document.getElementById("mlabel").textContent=MN[+p[1]-1]+" "+p[0];
+var R=rows(),tot=0,paid=0,open=0,vt=0;
+R.forEach(function(x){if(x.i=="משה"){x.d=false;x.s=false}if(x.i=="מורן")x.v=false});
+R.forEach(function(x){var g=gross(x);tot+=g;vt+=vatOf(x);if(x.p)paid+=g;else open+=g});
+document.getElementById("sum").innerHTML=
+"<div><small>ספקים</small><b>"+R.length+"</b></div>"+
+"<div><small>סה״כ כולל מע״מ</small><b>"+fmt(tot)+"</b></div>"+
+"<div><small>מתוכו מע״מ</small><b>"+fmt(vt)+"</b></div>"+
+"<div><small>שולם</small><b style='color:var(--ok)'>"+fmt(paid)+"</b></div>"+
+"<div><small>ממתין לתשלום</small><b style='color:var(--bad)'>"+fmt(open)+"</b></div>"+
+"<div><small>ללא חשבונית מס</small><b>"+R.filter(function(x){return x.i!="משה"&&!x.s}).length+"</b></div>";
+var F=[["all","הכל"],["unpaid","לא שולם"],["unsent","ללא חשבונית מס"],["moshe","משה"],["moran","מורן"]];
+document.getElementById("filters").innerHTML=F.map(function(f){return "<button class='btn"+(flt==f[0]?" on":"")+"' data-f='"+f[0]+"'>"+f[1]+"</button>"}).join("");
+var L=document.getElementById("list");L.innerHTML="";
+R.forEach(function(x,idx){
+if(flt=="unpaid"&&x.p)return;if(flt=="unsent"&&(x.s||x.i=="משה"))return;if(flt=="moshe"&&x.i!="משה")return;if(flt=="moran"&&x.i!="מורן")return;
+var d=document.createElement("div");d.className="row "+st(x)+(x.i=="משה"?" moshe":x.i=="מורן"?" moran":"");
+d.innerHTML="<div class='top'><input class='name' value=''><select><option value=''>קבלה ע״י: —</option><option>משה</option><option>מורן</option></select><input type='number' placeholder='סכום' min='0'><label class='vmc'><input type='checkbox' class='vm'> כולל מע״מ</label><button class='del' title='מחק'>×</button></div>"+
+"<div class='checks'><label><input type='checkbox' data-k='d'> חשבונית עסקה</label><label><input type='checkbox' data-k='s'> חשבונית מס</label><label><input type='checkbox' data-k='v'> חשבונית</label><label><input type='checkbox' data-k='p'> שולם</label></div><div class='vl'></div><input class='note' placeholder='הערות'>";
+var nm=d.querySelector(".name");nm.value=x.n;nm.oninput=function(){x.n=nm.value;save()};
+var sel=d.querySelector("select");sel.value=x.i;sel.onchange=function(){x.i=sel.value;save();render()};
+var am=d.querySelector("input[type=number]");am.value=x.a;am.oninput=function(){x.a=am.value;save()};am.onchange=render;
+d.querySelectorAll("[data-k]").forEach(function(c){var k=c.dataset.k;if((x.i=="משה"&&(k=="d"||k=="s"))||(x.i=="מורן"&&k=="v"))c.parentNode.style.display="none"});
+var vm=d.querySelector(".vm");vm.checked=!!x.w;vm.onchange=function(){x.w=vm.checked;save();render()};if(x.i=="משה")d.querySelector(".vmc").style.display="none";
+d.querySelectorAll("[data-k]").forEach(function(c){c.checked=x[c.dataset.k];c.onchange=function(){x[c.dataset.k]=c.checked;save();render()}});
+var nt=d.querySelector(".note");nt.value=x.t;nt.oninput=function(){x.t=nt.value;save()};
+d.querySelector(".del").onclick=function(){if(d.querySelector(".delbar"))return;var b=document.createElement("div");b.className="delbar";var s=document.createElement("span");s.textContent="להסיר את הספק?";b.appendChild(s);function mk(t,fn){var q=document.createElement("button");q.className="btn";q.textContent=t;q.onclick=fn;b.appendChild(q)}
+mk("החודש הזה בלבד",function(){R.splice(R.indexOf(x),1);save();render()});
+mk("החודש הזה והלאה",function(){Object.keys(data.m).forEach(function(k){if(k>=cur)data.m[k]=data.m[k].filter(function(y){return y.n!=x.n})});save();render()});
+mk("ביטול",function(){b.remove()});
+d.appendChild(b)};
+var vl=d.querySelector(".vl");if(vatApplies(x)&&+x.a){vl.textContent="סכום כולל מע״מ: "+fmt(gross(x))+" (מע״מ "+fmt(vatOf(x))+")"}else{vl.remove()}
+L.appendChild(d)})}
+document.getElementById("filters").onclick=function(e){if(e.target.dataset.f){flt=e.target.dataset.f;render()}};
+document.getElementById("prev").onclick=function(){shift(-1)};
+document.getElementById("next").onclick=function(){shift(1)};
+function add(){var v=document.getElementById("newName").value.trim();if(!v)return;rows().push(r(v));document.getElementById("newName").value="";save();render()}
+document.getElementById("addBtn").onclick=add;
+document.getElementById("newName").onkeydown=function(e){if(e.key=="Enter")add()};
+document.getElementById("copyBtn").onclick=function(){
+var p=cur.split("-"),dt=new Date(+p[0],+p[1]-2,1),k=dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0"),src=data.m[k];
+if(!src){alert("אין חודש קודם");return}
+var have=rows().map(function(x){return x.n});
+src.forEach(function(x){if(have.indexOf(x.n)<0)rows().push(r(x.n,x.i))});save();render()};
+var vi=document.getElementById("vat");vi.value=VAT;vi.oninput=function(){VAT=+vi.value||0;data.vat=VAT;save();render()};
+render();loadRemote();
+</script>
+</body>
+</html>
